@@ -1,0 +1,5 @@
+{options_block}
+
+Which candidate, if any, answers the question? Write two to four sentences of
+comparison notes, then end with a line `Choice: Candidate <k>` or
+`Choice: None`.

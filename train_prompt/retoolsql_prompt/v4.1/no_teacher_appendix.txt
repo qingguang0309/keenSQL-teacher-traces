@@ -1,0 +1,1 @@
+No-gold mode: nothing is appended to the student prompt. This file only records that choice in run configs.

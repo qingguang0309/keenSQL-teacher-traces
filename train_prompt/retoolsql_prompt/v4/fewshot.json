@@ -1,0 +1,82 @@
+{
+  "version": "v4",
+  "description": "Two static few-shot episodes for the ReToolSQL v4 prompt. They use toy databases unrelated to any evaluation database. Each episode is a full chat sequence: user task, assistant turn, environment observation, ..., final answer. Observations use the same <observation> wrapper as the training and inference harness. Both final turns demonstrate the 'Verified call: k' line.",
+  "examples": [
+    {
+      "name": "which_form_single_column",
+      "demonstrates": "A 'which X' question: an empty result caused by a stored-literal case mismatch, repaired with bm25_search_sqlite, answered with exactly one column plus ORDER BY ... LIMIT 1.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Database Engine:\nSQLite\n\nDatabase Schema:\n【DB_ID】 schools_demo\n【Dialect】 SQLite\n【Database Summary】\n  Tables: 1 | Rows: 1,146 | Columns: 3 | Declared Foreign Keys: 0\n\n# Table: school | Rows: 1,146 | Columns: 3\n  [Table Summary] PK=school_id; declared_FKs=0; empty=false\n[\n  school_id:INTEGER normalized=Integer, PK, Not Null\n    [Observed] Role=identifier; Distinct=1,146\n  city:TEXT normalized=Text, Nullable\n    [Observed] Nulls=12; Distinct=57; Examples=['ALAMEDA', 'ALPINE', 'AMADOR']\n  charter:INTEGER normalized=Integer, Nullable\n    [Observed] Distinct=2; Domain=[0, 1]; Top=[0:1,038, 1:108]\n]\n\nExternal Knowledge:\n\nQuestion:\nWhich city has the most charter schools?"
+        },
+        {
+          "role": "assistant",
+          "content": "<scratch_pad>\nIntent: rank cities by charter-school count and return the top city name. Expected output columns: city. Candidate SQL: group by city, order by count descending, LIMIT 1, projecting only the city.\n</scratch_pad>\n<tool_call>\n<function=sqlite_query>\n<parameter=sql>\nSELECT city FROM school WHERE charter = 1 AND city = 'Alameda' GROUP BY city ORDER BY COUNT(*) DESC LIMIT 1\n</parameter>\n</function>\n</tool_call>"
+        },
+        {
+          "role": "user",
+          "content": "<observation>\n{\"columns\":[\"city\"],\"rows\":[],\"row_count\":0,\"truncated\":false,\"output_truncated\":false}\n</observation>"
+        },
+        {
+          "role": "assistant",
+          "content": "<scratch_pad>\nIntent: no row came back, so the filter literal may be stored differently. Expected output columns: city spellings. Search the column the final SQL filters on.\n</scratch_pad>\n<tool_call>\n<function=bm25_search_sqlite>\n<parameter=table>\nschool\n</parameter>\n<parameter=column>\ncity\n</parameter>\n<parameter=query>\nAlameda\n</parameter>\n</function>\n</tool_call>"
+        },
+        {
+          "role": "user",
+          "content": "<observation>\n[{\"value\":\"ALAMEDA\",\"bm25\":4.117,\"regex\":true}]\n</observation>"
+        },
+        {
+          "role": "assistant",
+          "content": "<scratch_pad>\nIntent: city is stored uppercase as 'ALAMEDA', so the mixed-case predicate matched nothing. Re-run with the stored spelling, still projecting one column. Expected output columns: city.\n</scratch_pad>\n<tool_call>\n<function=sqlite_query>\n<parameter=sql>\nSELECT city FROM school WHERE charter = 1 AND city = 'ALAMEDA' GROUP BY city ORDER BY COUNT(*) DESC LIMIT 1\n</parameter>\n</function>\n</tool_call>"
+        },
+        {
+          "role": "user",
+          "content": "<observation>\n{\"columns\":[\"city\"],\"rows\":[[\"ALAMEDA\"]],\"row_count\":1,\"truncated\":false,\"output_truncated\":false}\n</observation>"
+        },
+        {
+          "role": "assistant",
+          "content": "<scratch_pad>\nIntent: finalize the top city. Expected output columns: city. Verified call: 3\n</scratch_pad>\n<relevant_tables>\nschool\n</relevant_tables>\n<relevant_columns>\nschool.charter, school.city\n</relevant_columns>\n<final_answer>\nSELECT city FROM school WHERE charter = 1 AND city = 'ALAMEDA' GROUP BY city ORDER BY COUNT(*) DESC LIMIT 1\n</final_answer>"
+        }
+      ]
+    },
+    {
+      "name": "stored_format_peek",
+      "demonstrates": "A count question where the filter uses the wrong stored scale (clock time vs HHMM integer); repair with sqlite_peek and a range predicate, then submit one aggregate column.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Database Engine:\nSQLite\n\nDatabase Schema:\n【DB_ID】 flights_demo\n【Dialect】 SQLite\n【Database Summary】\n  Tables: 1 | Rows: 5,000 | Columns: 3 | Declared Foreign Keys: 0\n\n# Table: flights | Rows: 5,000 | Columns: 3\n  [Table Summary] PK=flight_id; declared_FKs=0; empty=false\n[\n  flight_id:INTEGER normalized=Integer, PK, Not Null\n    [Observed] Role=identifier; Distinct=5,000\n  carrier:TEXT normalized=Text, Nullable\n    [Observed] Distinct=3; Domain=['AA', 'DL', 'UA']\n  dep_time:INTEGER normalized=Integer, Nullable\n    [Observed] Nulls=40; Distinct=1,431; Examples=[5, 10, 155]; Min=1; Max=2400; observed_pattern=HHMM-like integer; special_value=2400\n]\n\nExternal Knowledge:\n\nQuestion:\nHow many flights depart between noon and 1 PM?"
+        },
+        {
+          "role": "assistant",
+          "content": "<scratch_pad>\nIntent: count departures in the noon hour. Expected output columns: n. Candidate SQL: filter dep_time between 12 and 13.\n</scratch_pad>\n<tool_call>\n<function=sqlite_query>\n<parameter=sql>\nSELECT COUNT(*) AS n FROM flights WHERE dep_time BETWEEN 12 AND 13\n</parameter>\n</function>\n</tool_call>"
+        },
+        {
+          "role": "user",
+          "content": "<observation>\n{\"columns\":[\"n\"],\"rows\":[[0]],\"row_count\":1,\"truncated\":false,\"output_truncated\":false}\n</observation>"
+        },
+        {
+          "role": "assistant",
+          "content": "<scratch_pad>\nIntent: a count of 0 although Max=2400 shows dep_time is not a clock hour, so the stored scale is wrong. Profile the column the final SQL filters on. Expected output columns: dep_time profile.\n</scratch_pad>\n<tool_call>\n<function=sqlite_peek>\n<parameter=table>\nflights\n</parameter>\n<parameter=columns>\n[\"dep_time\"]\n</parameter>\n<parameter=limit>\n5\n</parameter>\n</function>\n</tool_call>"
+        },
+        {
+          "role": "user",
+          "content": "<observation>\n{\"dep_time\":{\"type\":\"INTEGER\",\"nulls\":40,\"distinct\":1431,\"min\":1,\"max\":2400,\"top_values\":[],\"samples\":[5,10,155,1205,2359],\"chars\":{\"numeric\":0,\"date_like\":0,\"percent\":0,\"alpha\":0,\"other\":0},\"prefixes\":[]},\"_scan\":{\"rows_scanned\":5000,\"limit\":20000,\"truncated\":false,\"columns_truncated\":false,\"output_truncated\":false}}\n</observation>"
+        },
+        {
+          "role": "assistant",
+          "content": "<scratch_pad>\nIntent: 1205 and 2359 confirm HHMM integers, so the noon hour is 1200-1259. Re-run with a range predicate. Expected output columns: n.\n</scratch_pad>\n<tool_call>\n<function=sqlite_query>\n<parameter=sql>\nSELECT COUNT(*) AS n FROM flights WHERE dep_time BETWEEN 1200 AND 1259\n</parameter>\n</function>\n</tool_call>"
+        },
+        {
+          "role": "user",
+          "content": "<observation>\n{\"columns\":[\"n\"],\"rows\":[[431]],\"row_count\":1,\"truncated\":false,\"output_truncated\":false}\n</observation>"
+        },
+        {
+          "role": "assistant",
+          "content": "<scratch_pad>\nIntent: finalize the verified count. Expected output columns: n. Verified call: 3\n</scratch_pad>\n<relevant_tables>\nflights\n</relevant_tables>\n<relevant_columns>\nflights.dep_time\n</relevant_columns>\n<final_answer>\nSELECT COUNT(*) AS n FROM flights WHERE dep_time BETWEEN 1200 AND 1259\n</final_answer>"
+        }
+      ]
+    }
+  ]
+}

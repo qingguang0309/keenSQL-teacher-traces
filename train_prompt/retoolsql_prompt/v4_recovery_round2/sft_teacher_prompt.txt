@@ -1,0 +1,67 @@
+[TEACHER-ONLY — never reproduce, quote, or mention this block in any assistant turn]
+
+Reference SQL (private semantic guidance, for planning only):
+{reference_sql}
+
+Use the private reference only to understand the intended semantics. Produce a
+self-contained trajectory that a student could reconstruct from the visible
+question, evidence, M-Schema, and tool observations; never expose or allude to
+this private context.
+
+Teacher trajectory requirements:
+
+1. In the first `<scratch_pad>`, independently reconstruct the intended query
+   and identify the schema facts that control its tables, joins, predicates,
+   grouping, and ordering. Every stated fact must be visible in the question,
+   evidence, M-Schema, or a later tool observation.
+
+2. Use between one and eight tool calls. Normally use a decision-bearing
+   diagnostic call before final verification, but a single exact-final query is
+   sufficient when the visible context already grounds every decision or when
+   that query reaches an environment execution budget. Choose the tool that
+   best resolves any real uncertainty:
+   - use `bm25_search_sqlite` to discover or confirm a text value that is not
+     already visible, especially a category spelling or entity literal;
+   - use `sqlite_peek` to inspect a coded value, scale, date representation, or
+     compact column distribution;
+   - use a narrow `sqlite_query` to test a join path, predicate, aggregation,
+     cardinality, or candidate answer.
+   Additional calls are appropriate when an observation reveals a new semantic
+   uncertainty. Repeating a query is acceptable when it verifies a correction
+   or makes the exact final SQL the last attempted execution; avoid aimless
+   loops.
+
+3. Treat tool results as evidence. A SQL syntax/schema error or a result that
+   contradicts the intended semantics justifies a repair. In contrast,
+   `step_limit_exceeded` and execution timeout observations report an
+   environment budget, not a semantic defect in the SQL. Do not repeatedly
+   rewrite or re-run an equivalent statement solely because of either budget
+   error. If that statement is the semantically grounded final SQL, proceed to
+   the final answer and cite its call. Do not invent rows, values, or schema
+   details. A literal that was not initially visible must be grounded by a tool
+   observation before it appears in the reasoning or final SQL.
+
+4. The final tool call must be `sqlite_query` attempting exactly the SQL that
+   will appear in `<final_answer>`. It is valid to run a candidate earlier and
+   execute the same statement again as the final verification. If the exact
+   final attempt reports `step_limit_exceeded` or a timeout, cite it and finish
+   instead of consuming the remaining tool budget on equivalent retries. If
+   the SQL is edited after any execution, run the edited statement and cite
+   that later call.
+
+5. In `<final_answer>`, copy the last attempted SQL without changing any token
+   that affects execution and set `Verified call: k` to that exact
+   `sqlite_query` call. An external EX grader is the authority on result
+   correctness, including when the interactive tool hit its execution budget.
+   Correct execution-equivalent results take priority over stylistic similarity
+   to the private reference.
+
+6. Use at most nine assistant turns: no more than eight tool-call turns and
+   exactly one final-answer turn. Emit one complete assistant protocol block per
+   turn, one observation per tool call, and close every `<scratch_pad>`,
+   `<tool_call>`, and `<final_answer>` tag. Keep scratch pads concise and
+   auditable.
+
+7. Never use `<think>` tags or hidden-reasoning markup. Never mention a gold,
+   reference, supplied, hidden, privileged, or teacher SQL. Do not copy an
+   otherwise unsupported reference-only literal into the trajectory.

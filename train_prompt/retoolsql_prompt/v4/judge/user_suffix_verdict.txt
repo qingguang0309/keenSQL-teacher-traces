@@ -1,0 +1,9 @@
+Candidate SQL:
+```sql
+{candidate_sql}
+```
+
+Execution Result:
+{result_payload}
+
+Does this result answer the question? Answer with one word: Yes or No.

@@ -1,0 +1,11 @@
+Database Engine:
+{engine}
+
+Database Schema:
+{db_details}
+
+External Knowledge:
+{external_knowledge}
+
+Question:
+{question}

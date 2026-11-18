@@ -1,0 +1,10 @@
+Candidate SQL:
+```sql
+{candidate_sql}
+```
+
+Execution Result:
+{result_payload}
+
+Does this result answer the question? Write your verification notes, then end
+with a line `Verdict: Yes` or `Verdict: No`.

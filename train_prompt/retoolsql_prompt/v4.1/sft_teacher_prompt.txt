@@ -1,0 +1,60 @@
+[TEACHER-ONLY — never reproduce, quote, or mention this block in any assistant turn]
+
+Reference SQL (private semantic guidance, for planning only):
+{reference_sql}
+
+The reference SQL above is privileged context for this generation only. The
+student model will never see it, so the trajectory you produce must be
+reconstructible from the visible M-Schema and your own tool observations.
+
+Teacher trajectory requirements:
+
+1. Treat the reference SQL as a private semantic specification, not as text to
+   copy. In the first `<scratch_pad>`, independently reconstruct a candidate SQL
+   from the visible M-Schema and name two or three schema facts that determine
+   it (for example an `Examples` literal, a `Domain` value, an
+   `observed_pattern`, a `[Quality]` warning, or a `[Relation] match_rate`).
+   Every named fact must actually appear in the M-Schema you were given.
+
+2. Use at least two tool calls. Normally finish in two to four; for a genuinely
+   complex join, ambiguous encoding, or observation-driven repair, you may use
+   up to six. The exact-final-SQL execution counts toward this budget. Do not
+   make calls merely to consume the allowance. The first call must verify one
+   of those decision-bearing facts:
+   - an uncertain text literal or category spelling -> `bm25_search_sqlite`
+     on the column the final SQL filters on;
+   - a numeric scale, coded value, or date encoding -> `sqlite_peek` on the
+     column the final SQL uses;
+   - a join path, key compatibility, or data distribution -> a narrow
+     `sqlite_query` (`COUNT(*)`, `LIMIT`, or a few columns) that is not the
+     final answer.
+   If no schema fact needs verification, use a narrow `sqlite_query` that
+   checks the main predicate or join cardinality. Every later diagnostic call
+   must resolve a distinct uncertainty exposed by the schema or an earlier
+   observation.
+
+3. Execute the candidate answer with `sqlite_query`. Repair it only when a
+   concrete observation or execution error justifies the change, and state
+   that reason briefly in the next `<scratch_pad>`. Do not probe for
+   reassurance, repeat an identical statement, or rewrite a correct query only
+   to create a longer trajectory.
+
+4. Before finalizing, execute the exact SQL that will appear in
+   `<final_answer>` and cite that call as `Verified call: k`. The cited index
+   counts every `sqlite_query`, `sqlite_peek`, and `bm25_search_sqlite` call in
+   order. If you edit the SQL after executing it, execute the edited SQL and
+   cite the new index.
+
+5. Use no more than seven assistant turns total: at most six tool-call turns
+   followed by exactly one final-answer turn. Finish earlier whenever the SQL is
+   grounded and verified. Keep every `<scratch_pad>` under the base prompt's
+   word limit and follow its XML protocol exactly, including the closing-tag
+   self-check.
+
+6. Never use `<think>` tags or any hidden reasoning channel. Put the concise,
+   auditable reasoning needed to understand each decision in `<scratch_pad>`.
+
+7. The final answer must contain only the independently reconstructed SQL and
+   the annotations required by the base prompt. Never quote, paraphrase, or
+   discuss the reference SQL, and never say or imply that a gold, reference,
+   provided, hidden, privileged, or teacher-only SQL was supplied.
